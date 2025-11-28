@@ -1,0 +1,19 @@
+{
+  "name": "krafton-gamedev",
+  "version": "1.0.0",
+  "description": "Krafton GameDev Assignment - By Dipayan Das",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/dd-002/krafton-gamedev.git"
+  },
+  "author": "Dipayan Das",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dd-002/krafton-gamedev/issues"
+  },
+  "homepage": "https://github.com/dd-002/krafton-gamedev#readme"
+}
