@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const { handleRoomMessage } = require('./handlers/roomHandler');
 const { handleGameMessage } = require('./handlers/gameHandler');
+const { activeGameRooms } = require('../managers/roomManager')
 
 const handleConnection = async (ws, wss, redisClient, clientName) => {
 

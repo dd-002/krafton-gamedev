@@ -80,7 +80,6 @@ class MapGenerator {
             height: this.height,
             obstacles: obstacles,
             startPositions: startPositions,
-            playerSize: playerSize
         };
     }
 }
