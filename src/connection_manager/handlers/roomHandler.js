@@ -1,56 +1,52 @@
-//Handles room joining and creation logic
-
 const crypto = require('crypto');
-const { broadcastToRoom } = require('../utils/broadcast');
+const GameRoom = require('../classes/GameRoom'); // Import your class
+const { activeGameRooms } = require('../managers/roomManager'); // Import the Map
 
 const handleRoomMessage = async (ws, wss, redisClient, data) => {
     
-    // creates room
+    // --- CREATE ROOM ---
     if (data.type === 'create_room') {
         const roomId = crypto.randomUUID().substring(0, 6).toUpperCase();
 
-        await redisClient.hSet(`room:${roomId}`, {
-            createdBy: ws.clientID,
-            status: 'waiting',
-            createdAt: Date.now()
+        // 1. Instantiate the Game Logic Class
+        const newGameRoom = new GameRoom(roomId, redisClient);
+        
+        // 2. Store it in memory
+        activeGameRooms.set(roomId, newGameRoom);
+
+        // 3. Add the creator to the game
+        await newGameRoom.addPlayer(ws, { 
+            clientID: ws.clientID, 
+            clientName: ws.clientName 
         });
-        await redisClient.sAdd(`room:${roomId}:players`, ws.clientID);
-        await redisClient.hSet(`user:${ws.clientID}`, { joinedRoom: roomId });
 
+        // 4. Update Client WS State
         ws.roomID = roomId;
-
-        ws.send(JSON.stringify({
-            type: 'room_created',
-            roomId: roomId,
-            message: `Room ${roomId} created.`
-        }));
+        await redisClient.hSet(`user:${ws.clientID}`, { joinedRoom: roomId });
     }
 
-    // joins existing room
+    // --- JOIN ROOM ---
     else if (data.type === 'join_room') {
         const targetRoomId = data.roomId;
-        const roomExists = await redisClient.exists(`room:${targetRoomId}`);
+        
+        // 1. Check if the Game Instance exists in memory
+        const gameRoom = activeGameRooms.get(targetRoomId);
 
-        if (!roomExists) {
-            ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
+        if (!gameRoom) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Room not found or game ended' }));
             return;
         }
 
-        await redisClient.sAdd(`room:${targetRoomId}:players`, ws.clientID);
-        await redisClient.hSet(`user:${ws.clientID}`, { joinedRoom: targetRoomId });
-
-        ws.roomID = targetRoomId;
-
-        ws.send(JSON.stringify({
-            type: 'room_joined',
-            roomId: targetRoomId
-        }));
-
-        broadcastToRoom(wss, targetRoomId, {
-            type: 'player_joined',
-            newPlayerId: ws.clientID,
-            message: `${ws.clientName} joined!`
+        // 2. Add player to the existing instance
+        const success = await gameRoom.addPlayer(ws, { 
+            clientID: ws.clientID, 
+            clientName: ws.clientName 
         });
+
+        if (success) {
+            ws.roomID = targetRoomId;
+            await redisClient.hSet(`user:${ws.clientID}`, { joinedRoom: targetRoomId });
+        }
     }
 };
 
