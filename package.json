@@ -15,5 +15,8 @@
   "bugs": {
     "url": "https://github.com/dd-002/krafton-gamedev/issues"
   },
-  "homepage": "https://github.com/dd-002/krafton-gamedev#readme"
+  "homepage": "https://github.com/dd-002/krafton-gamedev#readme",
+  "dependencies": {
+    "ws": "^8.18.3"
+  }
 }
