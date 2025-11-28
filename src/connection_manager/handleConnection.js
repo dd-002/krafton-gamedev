@@ -1,54 +1,59 @@
-//Handles Client Connections
+const crypto = require('crypto');
+const { handleRoomMessage } = require('./handlers/roomHandler');
+const { handleGameMessage } = require('./handlers/gameHandler');
 
-const crypto = require('crypto'); // for creating client id
+const handleConnection = async (ws, wss, redisClient, clientName) => {
+    
 
-
-const handleConnection = async (ws, wss, redisClient,clientName) => {
-
-    // 1. Generate a Unique ID
     const clientID = crypto.randomUUID();
-
-    // attached clientID to object
     ws.clientID = clientID;
     ws.clientName = clientName;
+    ws.roomID = null;
 
     await redisClient.hSet(`user:${clientID}`, {
         clientName: clientName,
         clientID: clientID,
-        joinedRoom: "false",
-        joinedGame: "false",
     });
 
-    console.log(`New Player Connected: ${clientName} (ID: ${clientID})`);
+    ws.send(JSON.stringify({ type: 'welcome', yourID: clientID }));
 
-
-    const welcomePayload = {
-        type: 'welcome',
-        message: `Welcome ${clientName}!`,
-        yourID: clientID,
-        yourName: clientName
-    };
-    ws.send(JSON.stringify(welcomePayload));
-
-    // Event listener for incoming messages
-    ws.on('message', (message) => {
+    // Message Router
+    ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message.toString());
-            console.log(`[${ws.clientName}] sent:`, data);
 
-            //TODO : Game logic
+            // Routing Logic
+            switch (data.type) {
+                
+                case 'create_room':
+                    await handleRoomMessage(ws, wss, redisClient, data);
+                    break;
+                case 'join_room':
+                    await handleRoomMessage(ws, wss, redisClient, data);
+                    break;
+
+                // Game Logic (WASD)
+                case 'move':
+                case 'action':
+                    // Check if they are actually in a room before allowing moves
+                    if (ws.roomID) {
+                        handleGameMessage(ws, wss, redisClient, data);
+                    } else {
+                        ws.send(JSON.stringify({type: 'error', message: "Join a room first!"}));
+                    }
+                    break;
+
+                default:
+                    console.log("Unknown message type:", data.type);
+            }
 
         } catch (error) {
-            console.log(`[${ws.clientName}] sent raw:`, message.toString());
+            console.error("Error:", error);
         }
     });
 
     ws.on('close', () => {
-        console.log(`${ws.clientName} (${ws.clientID}) disconnected`);
-    });
-
-    ws.on('error', (error) => {
-        console.error(`Error with ${ws.clientName}:`, error);
+        //TODO: Handle client connection close
     });
 };
 
