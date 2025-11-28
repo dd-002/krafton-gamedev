@@ -75,8 +75,6 @@ class MapGenerator {
             startPositions.push({ x: 50, y: 50 });
         }
 
-        console.log(`[MapGenerator] Generated ${obstacles.length} obstacles and ${startPositions.length} spawn points.`, startPositions);
-
         return {
             width: this.width,
             height: this.height,
