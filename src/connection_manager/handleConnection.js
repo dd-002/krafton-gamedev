@@ -3,7 +3,7 @@ const { handleRoomMessage } = require('./handlers/roomHandler');
 const { handleGameMessage } = require('./handlers/gameHandler');
 
 const handleConnection = async (ws, wss, redisClient, clientName) => {
-    
+
 
     const clientID = crypto.randomUUID();
     ws.clientID = clientID;
@@ -24,7 +24,7 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
 
             // Routing Logic
             switch (data.type) {
-                
+
                 case 'create_room':
                     await handleRoomMessage(ws, wss, redisClient, data);
                     break;
@@ -39,7 +39,7 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
                     if (ws.roomID) {
                         handleGameMessage(ws, wss, redisClient, data);
                     } else {
-                        ws.send(JSON.stringify({type: 'error', message: "Join a room first!"}));
+                        ws.send(JSON.stringify({ type: 'error', message: "Join a room first!"}));
                     }
                     break;
 
@@ -53,8 +53,21 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
     });
 
     ws.on('close', () => {
-        //TODO: Handle client connection close
+        if (ws.roomID) {
+            const gameRoom = activeGameRooms.get(ws.roomID);
+            if (gameRoom) {
+                gameRoom.removePlayer(ws.clientID);
+
+                // if room empty, we kill
+                if (gameRoom.players.size === 0) {
+                    activeGameRooms.delete(ws.roomID);
+                    redisClient.del(`room:${ws.roomID}`);
+                    console.log(`Room ${ws.roomID} closed.`);
+                }
+            }
+        }
     });
+
 };
 
 module.exports = { handleConnection };
