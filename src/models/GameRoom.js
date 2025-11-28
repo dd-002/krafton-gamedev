@@ -103,6 +103,8 @@ class GameRoom {
         }
     }
 
+
+    //TODO:A lot
     handleMove(playerId, movementData) {
         const p = this.players.get(playerId);
         if (p) {
@@ -118,7 +120,7 @@ class GameRoom {
                 id: playerId, 
                 x: p.x, 
                 y: p.y 
-            }, playerId); // exclude sender
+            }, playerId); // exclude sender, maybe changed
         }
     }
 
