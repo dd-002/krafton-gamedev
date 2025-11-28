@@ -1,4 +1,4 @@
-import { createClient } from 'redis';
+const { createClient } = require('redis');
 
 const redisClient = createClient({
         host: '127.0.0.1', 

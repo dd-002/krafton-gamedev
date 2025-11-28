@@ -1,6 +1,7 @@
 const WebSocket = require('ws');
 
-const ws = new WebSocket('ws://localhost:8080');
+const playerName = "Dipayan";
+const ws = new WebSocket(`ws://localhost:8080?name=${playerName}`);
 
 ws.onopen = () => {
   console.log('Connected to WebSocket server');

@@ -1,9 +1,10 @@
+//Handles Client Connections
+
 const crypto = require('crypto'); // for creating client id
-import { redisClient} from './src/connection_manager/connect_redis';
 
 
-const handleConnection = async (ws, wss, clientName) => {
-    
+const handleConnection = async (ws, wss, redisClient,clientName) => {
+
     // 1. Generate a Unique ID
     const clientID = crypto.randomUUID();
 
@@ -12,15 +13,15 @@ const handleConnection = async (ws, wss, clientName) => {
     ws.clientName = clientName;
 
     await redisClient.hSet(`user:${clientID}`, {
-        clientName : clientName,
-        clientID : clientID,
-        joinedRoom : false,
-        joinedGame : false,
+        clientName: clientName,
+        clientID: clientID,
+        joinedRoom: "false",
+        joinedGame: "false",
     });
 
     console.log(`New Player Connected: ${clientName} (ID: ${clientID})`);
 
-    
+
     const welcomePayload = {
         type: 'welcome',
         message: `Welcome ${clientName}!`,
