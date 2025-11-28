@@ -1,4 +1,4 @@
-const mapGenerator = require('./mapGenerator');
+const mapGenerator = require('./MapGenerator');
 
 class GameRoom {
     constructor(roomId, redisClient) {
