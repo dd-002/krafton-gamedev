@@ -1,19 +1,26 @@
 const crypto = require('crypto'); // for creating client id
+import { redisClient} from './src/connection_manager/connect_redis';
 
 
-const handleConnection = (ws, wss, clientName) => {
+const handleConnection = async (ws, wss, clientName) => {
     
     // 1. Generate a Unique ID
     const clientID = crypto.randomUUID();
 
-    // 2. Attach metadata to the WebSocket object directly
-    // This allows us to access 'ws.clientID' in any other function later
+    // attached clientID to object
     ws.clientID = clientID;
     ws.clientName = clientName;
 
+    await redisClient.hSet(`user:${clientID}`, {
+        clientName : clientName,
+        clientID : clientID,
+        joinedRoom : false,
+        joinedGame : false,
+    });
+
     console.log(`New Player Connected: ${clientName} (ID: ${clientID})`);
 
-    // 3. Send the ID back to the client immediately so they know who they are
+    
     const welcomePayload = {
         type: 'welcome',
         message: `Welcome ${clientName}!`,
@@ -26,9 +33,9 @@ const handleConnection = (ws, wss, clientName) => {
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message.toString());
-            
-            // Log with the specific client's ID/Name
             console.log(`[${ws.clientName}] sent:`, data);
+
+            //TODO : Game logic
 
         } catch (error) {
             console.log(`[${ws.clientName}] sent raw:`, message.toString());
