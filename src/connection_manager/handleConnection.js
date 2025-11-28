@@ -1,60 +1,53 @@
 const crypto = require('crypto');
-const { handleRoomMessage } = require('./handlers/roomHandler');
-const { handleGameMessage } = require('./handlers/gameHandler');
+const GameRoom = require('../classes/GameRoom'); // Import your class
+const { activeGameRooms } = require('../managers/roomManager'); // Import the Map
 
-const handleConnection = async (ws, wss, redisClient, clientName) => {
+const handleRoomMessage = async (ws, wss, redisClient, data) => {
     
+    // --- CREATE ROOM ---
+    if (data.type === 'create_room') {
+        const roomId = crypto.randomUUID().substring(0, 6).toUpperCase();
 
-    const clientID = crypto.randomUUID();
-    ws.clientID = clientID;
-    ws.clientName = clientName;
-    ws.roomID = null;
+        // 1. Instantiate the Game Logic Class
+        const newGameRoom = new GameRoom(roomId, redisClient);
+        
+        // 2. Store it in memory
+        activeGameRooms.set(roomId, newGameRoom);
 
-    await redisClient.hSet(`user:${clientID}`, {
-        clientName: clientName,
-        clientID: clientID,
-    });
+        // 3. Add the creator to the game
+        await newGameRoom.addPlayer(ws, { 
+            clientID: ws.clientID, 
+            clientName: ws.clientName 
+        });
 
-    ws.send(JSON.stringify({ type: 'welcome', yourID: clientID }));
+        // 4. Update Client WS State
+        ws.roomID = roomId;
+        await redisClient.hSet(`user:${ws.clientID}`, { joinedRoom: roomId });
+    }
 
-    // Message Router
-    ws.on('message', async (message) => {
-        try {
-            const data = JSON.parse(message.toString());
+    // --- JOIN ROOM ---
+    else if (data.type === 'join_room') {
+        const targetRoomId = data.roomId;
+        
+        // 1. Check if the Game Instance exists in memory
+        const gameRoom = activeGameRooms.get(targetRoomId);
 
-            // Routing Logic
-            switch (data.type) {
-                
-                case 'create_room':
-                    await handleRoomMessage(ws, wss, redisClient, data);
-                    break;
-                case 'join_room':
-                    await handleRoomMessage(ws, wss, redisClient, data);
-                    break;
-
-                // Game Logic (WASD)
-                case 'move':
-                case 'action':
-                    // Check if they are actually in a room before allowing moves
-                    if (ws.roomID) {
-                        handleGameMessage(ws, wss, redisClient, data);
-                    } else {
-                        ws.send(JSON.stringify({type: 'error', message: "Join a room first!"}));
-                    }
-                    break;
-
-                default:
-                    console.log("Unknown message type:", data.type);
-            }
-
-        } catch (error) {
-            console.error("Error:", error);
+        if (!gameRoom) {
+            ws.send(JSON.stringify({ type: 'error', message: 'Room not found or game ended' }));
+            return;
         }
-    });
 
-    ws.on('close', () => {
-        //TODO: Handle client connection close
-    });
+        // 2. Add player to the existing instance
+        const success = await gameRoom.addPlayer(ws, { 
+            clientID: ws.clientID, 
+            clientName: ws.clientName 
+        });
+
+        if (success) {
+            ws.roomID = targetRoomId;
+            await redisClient.hSet(`user:${ws.clientID}`, { joinedRoom: targetRoomId });
+        }
+    }
 };
 
-module.exports = { handleConnection };
+module.exports = { handleRoomMessage };
