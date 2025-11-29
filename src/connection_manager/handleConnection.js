@@ -35,7 +35,7 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
 
                 // Game Logic (WASD)
                 case 'move':
-                case 'action':
+                case 'input':
                     // Check if they are actually in a room before allowing moves
                     if (ws.roomID) {
                         handleGameMessage(ws, wss, redisClient, data);
