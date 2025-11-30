@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dipayan's Coin Hunter</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div id="login-screen" class="ui-panel">
+        <h1 class="game-title">🪙 Coin Hunter</h1>
+        
+        <input type="text" id="username" placeholder="Enter Nickname" value="Player 1" maxlength="10">
+        <br>
+        <button id="btn-create">Create Room</button>
+        <br>
+        <div class="separator">-- OR --</div>
+        <input type="text" id="room-code" placeholder="Room ID">
+        <button id="btn-join">Join Room</button>
+        
+        <div id="connection-status" class="status-msg"></div>
+    </div>
+
+    <div id="game-over-screen" class="ui-panel" style="display: none;">
+        <h1>🏆 GAME OVER 🏆</h1>
+        <div id="winner-name">PlayerName Wins!</div>
+        <button onclick="location.reload()">Play Again</button>
+    </div>
+
+    <div id="game-info" style="display: none;">
+        <div class="hud-item">Room: <span id="room-display">-</span></div>
+        <div class="hud-item">Players: <span id="player-count">0</span></div>
+        <div class="hud-item target-msg">Target: 10 Coins</div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script src="client_nophysics.js"></script>
+</body>
+</html>
