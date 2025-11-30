@@ -3,8 +3,7 @@ const { handleRoomMessage } = require('./handlers/roomHandler');
 const { handleGameMessage } = require('./handlers/gameHandler');
 const { activeGameRooms } = require('../managers/roomManager');
 
-// --- SIMULATED LAG CONFIGURATION ---
-// Set ENABLE_LAG to true to simulate a bad connection
+// simulated lag
 const ENABLE_LAG = false; 
 const LAG_MS = 200; // 200ms delay (Simulates 100ms ping one-way)
 // -----------------------------------
