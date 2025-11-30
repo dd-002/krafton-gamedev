@@ -45,6 +45,8 @@ The engine includes a launcher (`index.html`) that allows seamless switching bet
 
 ## ⚙️ Configuration & Environment
 
+Redis is required, it was used for simplicity just for saving game stats, and testing it can be however replaced by any database
+
 The project is controlled via a `.env` file in the root directory.
 
 **Configuration:**
