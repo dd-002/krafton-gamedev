@@ -1,30 +1,40 @@
 const SERVER_URL = 'ws://localhost:8080';
 
-// state variables
 let ws;
 let myId = null;
 let canvas, ctx;
 let isGameRunning = false;
 
-// dame data
+// Ping State
+let pingStart = 0; 
+let currentLatency = 0; 
+
+// Game Data
 let mapData = { width: 800, height: 600, obstacles: [] };
 const players = new Map(); 
 let currentCoin = null;
 
+// Inputs
 const inputs = { w: false, a: false, s: false, d: false };
 
-// physics constant same as server
+// physics constants
+const SERVER_TICK_RATE = 30; 
+const TICK_DURATION = 1000 / SERVER_TICK_RATE; 
 const PLAYER_SPEED = 5; 
-const LERP_FACTOR = 0.1; 
-const ERROR_THRESHOLD = 50; 
+const LERP_FACTOR = 0.2; 
+const PLAYER_SIZE = 30; 
+
+// timing variable
+let lastFrameTime = 0;
+let tickAccumulator = 0;
+
 
 document.addEventListener('DOMContentLoaded', () => {
-    // Attach button listeners after DOM loads
     document.getElementById('btn-create').addEventListener('click', connectAndCreate);
     document.getElementById('btn-join').addEventListener('click', connectAndJoin);
 });
 
-// initialisation of canvas
+// initialisation
 function initCanvas() {
     canvas = document.getElementById('gameCanvas');
     ctx = canvas.getContext('2d');
@@ -32,20 +42,18 @@ function initCanvas() {
     canvas.height = mapData.height;
     
     isGameRunning = true;
+    lastFrameTime = performance.now(); 
     requestAnimationFrame(renderLoop);
     
     window.addEventListener('keydown', handleKey);
     window.addEventListener('keyup', handleKey);
 }
 
-// creating a room
 function connectAndCreate() {
     const name = document.getElementById('username').value || 'Anon';
     connect(name, 'create');
 }
 
-
-// joining a room
 function connectAndJoin() {
     const name = document.getElementById('username').value || 'Anon';
     const roomId = document.getElementById('room-code').value;
@@ -60,6 +68,7 @@ function connect(name, mode, roomId = null) {
 
     ws.onopen = () => {
         statusDiv.innerText = "Connected! Handshaking...";
+        startPingLoop();
     };
 
     ws.onmessage = (event) => {
@@ -75,7 +84,15 @@ function connect(name, mode, roomId = null) {
     };
 }
 
-// message routing
+function startPingLoop() {
+    setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            pingStart = Date.now(); 
+            ws.send(JSON.stringify({ type: 'ping' }));
+        }
+    }, 1000); 
+}
+
 function handleServerMessage(data, mode, targetRoomId) {
     switch (data.type) {
         case 'welcome':
@@ -86,8 +103,14 @@ function handleServerMessage(data, mode, targetRoomId) {
             }
             break;
 
+        case 'pong':
+            const newLatency = Date.now() - pingStart;
+            currentLatency = (currentLatency * 0.7) + (newLatency * 0.3);
+            const pingEl = document.getElementById('ping-display');
+            if (pingEl) pingEl.innerText = Math.round(currentLatency);
+            break;
+
         case 'INIT':
-            // game init
             myId = data.selfId;
             mapData = data.map;
             currentCoin = data.coin;
@@ -95,12 +118,14 @@ function handleServerMessage(data, mode, targetRoomId) {
             
             players.clear();
             data.players.forEach(p => {
+                // initialise coordinates
                 p.serverX = p.x;
                 p.serverY = p.y;
+                p.drawX = p.x;
+                p.drawY = p.y;
                 players.set(p.id, p);
             });
             
-            // switches ui
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('gameCanvas').style.display = 'block';
             document.getElementById('game-info').style.display = 'block';
@@ -111,6 +136,9 @@ function handleServerMessage(data, mode, targetRoomId) {
         case 'NEW_PLAYER':
             data.player.serverX = data.player.x;
             data.player.serverY = data.player.y;
+            // initialise visuals
+            data.player.drawX = data.player.x;
+            data.player.drawY = data.player.y;
             players.set(data.player.id, data.player);
             break;
 
@@ -140,11 +168,9 @@ function handleGameState(data) {
     data.players.forEach(p => {
         const localPlayer = players.get(p.id);
         if (localPlayer) {
-            // updates from server
             localPlayer.serverX = p.x;
             localPlayer.serverY = p.y;
             localPlayer.score = p.score;
-            
         }
     });
 }
@@ -178,19 +204,75 @@ function handleKey(e) {
     }
 }
 
-// lerp util func
+// lerp func
 function lerp(start, end, factor) {
     return start + (end - start) * factor;
 }
 
-// render loop
-function renderLoop() {
+function checkCollision(rect1, rect2) {
+    return (
+        rect1.x < rect2.x + rect2.w &&
+        rect1.x + rect1.w > rect2.x &&
+        rect1.y < rect2.y + rect2.h &&
+        rect1.y + rect1.h > rect2.y
+    );
+}
+
+function isPositionSafe(x, y) {
+    // Boundary Check
+    if (x < 0 || x + PLAYER_SIZE > mapData.width) return false;
+    if (y < 0 || y + PLAYER_SIZE > mapData.height) return false;
+
+    // Obstacle Check
+    const playerRect = { x: x, y: y, w: PLAYER_SIZE, h: PLAYER_SIZE };
+    for (const obs of mapData.obstacles) {
+        if (checkCollision(playerRect, obs)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// renderer
+function renderLoop(timestamp) {
     if (!isGameRunning) return;
+
+    const dt = timestamp - lastFrameTime;
+    lastFrameTime = timestamp;
+    tickAccumulator += dt;
+
+    // physics loop
+    // While we have enough accumulated time for a tick, run the physics
+    while (tickAccumulator >= TICK_DURATION) {
+        players.forEach(player => {
+            if (player.id === myId) {
+                // client prediction
+                let dx = 0; let dy = 0;
+                if (inputs.w) dy -= PLAYER_SPEED;
+                if (inputs.s) dy += PLAYER_SPEED;
+                if (inputs.a) dx -= PLAYER_SPEED;
+                if (inputs.d) dx += PLAYER_SPEED;
+
+                // Apply movement safely
+                if (dx !== 0) {
+                    const newX = player.x + dx;
+                    if (isPositionSafe(newX, player.y)) player.x = newX;
+                }
+                if (dy !== 0) {
+                    const newY = player.y + dy;
+                    if (isPositionSafe(player.x, newY)) player.y = newY;
+                }
+            }
+        });
+        tickAccumulator -= TICK_DURATION;
+    }
+
+    // reconciliation
 
     ctx.fillStyle = '#ecf0f1';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // draw obstacles
+    // Draw Obstacles
     ctx.fillStyle = '#34495e'; 
     mapData.obstacles.forEach(obs => {
         ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
@@ -199,7 +281,7 @@ function renderLoop() {
         ctx.strokeRect(obs.x, obs.y, obs.w, obs.h);
     });
 
-    // draws coin
+    // Draw Coin
     if (currentCoin) {
         const cx = currentCoin.x + 7.5;
         const cy = currentCoin.y + 7.5;
@@ -208,73 +290,86 @@ function renderLoop() {
         ctx.arc(cx, cy, 10, 0, Math.PI * 2);
         ctx.fillStyle = '#f1c40f';
         ctx.fill();
-        
         ctx.strokeStyle = '#f39c12';
         ctx.stroke();
-        
         ctx.fillStyle = '#FFF';
         ctx.beginPath();
         ctx.arc(cx - 3, cy - 3, 3, 0, Math.PI * 2);
         ctx.fill();
     }
 
-    // draw players
+    // Draw Players
     players.forEach(player => {
-        
-        
         if (player.id === myId) {
-            // client prediction
-            if (inputs.w) player.y -= PLAYER_SPEED;
-            if (inputs.s) player.y += PLAYER_SPEED;
-            if (inputs.a) player.x -= PLAYER_SPEED;
-            if (inputs.d) player.x += PLAYER_SPEED;
-
-            // Server Reconciliation
+            // adaptive reconciliation
             const dist = Math.sqrt(
                 Math.pow(player.x - player.serverX, 2) + 
                 Math.pow(player.y - player.serverY, 2)
             );
 
-            if (dist > ERROR_THRESHOLD) {
-                // wall hit on server
+            // dynamic tolerance
+            const isMoving = inputs.w || inputs.a || inputs.s || inputs.d;
+            let tolerance = 1;
+            
+            if (isMoving) {
+                const msPerTick = 1000 / SERVER_TICK_RATE;
+                const ticksBehind = currentLatency / msPerTick;
+                const acceptableError = ticksBehind * PLAYER_SPEED;
+                
+                tolerance = Math.max(acceptableError * 3.0, 15);
+            }
+
+            const dynamicSnapThreshold = Math.max(50, tolerance * 2);
+
+            if (dist > dynamicSnapThreshold) {
+                // Hard Correction
                 player.x = player.serverX;
                 player.y = player.serverY;
-            } else if (dist > 1) {
-                // drift correction
-                player.x = lerp(player.x, player.serverX, LERP_FACTOR);
-                player.y = lerp(player.y, player.serverY, LERP_FACTOR);
+                // Also Snap Visuals
+                player.drawX = player.x;
+                player.drawY = player.y;
+            } else if (dist > tolerance) {
+                // Soft Correction 
+                player.x = lerp(player.x, player.serverX, 0.05); 
+                player.y = lerp(player.y, player.serverY, 0.05);
             }
+
         } else {
-            // lerp interpolation to server position
+            // sync physics to server
             if (player.serverX !== undefined) {
                 player.x = lerp(player.x, player.serverX, 0.2);
                 player.y = lerp(player.y, player.serverY, 0.2);
             }
         }
 
-        // draws player
+        // visual interpolation
+        
+        if (player.drawX === undefined) { player.drawX = player.x; player.drawY = player.y; }
+
+        // Interpolate Visuals
+        const VISUAL_SMOOTHING = 0.3; // 30% per frame
+        player.drawX = lerp(player.drawX, player.x, VISUAL_SMOOTHING);
+        player.drawY = lerp(player.drawY, player.y, VISUAL_SMOOTHING);
+
         ctx.fillStyle = player.color;
-        ctx.fillRect(player.x, player.y, 30, 30); 
+        ctx.fillRect(player.drawX, player.drawY, 30, 30); 
         
         if (player.id === myId) {
             ctx.strokeStyle = '#2c3e50'; 
             ctx.lineWidth = 3; 
-            ctx.strokeRect(player.x, player.y, 30, 30);
+            ctx.strokeRect(player.drawX, player.drawY, 30, 30);
         }
 
-        // score bar
         ctx.fillStyle = '#7f8c8d'; 
-        ctx.fillRect(player.x, player.y - 15, 30, 6);
-        
+        ctx.fillRect(player.drawX, player.drawY - 15, 30, 6);
         const fillWidth = Math.min((player.score / 10) * 30, 30);
         ctx.fillStyle = '#2ecc71'; 
-        ctx.fillRect(player.x, player.y - 15, fillWidth, 6);
+        ctx.fillRect(player.drawX, player.drawY - 15, fillWidth, 6);
 
-        // name
         ctx.fillStyle = '#2c3e50'; 
         ctx.font = 'bold 12px Arial'; 
         ctx.textAlign = 'center'; 
-        ctx.fillText(player.name, player.x + 15, player.y - 20);
+        ctx.fillText(player.name, player.drawX + 15, player.drawY - 20);
     });
 
     requestAnimationFrame(renderLoop);
