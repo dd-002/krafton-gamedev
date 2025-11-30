@@ -185,7 +185,7 @@ function updateDebugUI(ping) {
     }
 }
 
-// --- Input (Send Only) ---
+// input
 
 function handleKey(e) {
     if (e.repeat) return;

@@ -13,18 +13,17 @@ let currentCoin = null;
 // Inputs
 const inputs = { w: false, a: false, s: false, d: false };
 
-// --- PHYSICS CONSTANTS ---
+// physics constants
 const PLAYER_SIZE = 30;
 const RECOIL_DISTANCE = 25;
 const SPEED_PER_MS = 0.15; 
 
-// --- RECONCILIATION TUNING ---
-const RECONCILIATION_TOLERANCE = 40; // The "Trust Zone" (prevents jitter)
+// reconciliation tuning
+const RECONCILIATION_TOLERANCE = 40; // trust zone
 const SNAP_THRESHOLD = 100; // Hard correction threshold
 
-// --- TIMESTEP TRACKING ---
+// timestep tracking
 let lastServerTick = 0; // Track the latest frame we received
-// -------------------------
 
 let lastFrameTime = 0;
 let pingStart = 0;
@@ -49,7 +48,7 @@ function initCanvas() {
     window.addEventListener('keyup', handleKey);
 }
 
-// --- Networking ---
+// networking
 
 function connectAndCreate() {
     const name = document.getElementById('username').value || 'Anon';
@@ -138,9 +137,7 @@ function handleServerMessage(data, mode, targetRoomId) {
                     if (p.id === myId) {
                         const dist = Math.hypot(localPlayer.x - p.x, localPlayer.y - p.y);
                         
-                        // JITTER FIX:
-                        // Only snap if the error is HUGE (like > 100px). 
-                        // If it's small (<40px), we assume it's just lag and ignore it.
+                        // TODO: JITTER FIX:
                         if (dist > SNAP_THRESHOLD) {
                             localPlayer.x = p.x;
                             localPlayer.y = p.y;
@@ -226,7 +223,7 @@ function checkCollision(r1, r2) {
             r1.y < r2.y + r2.h && r1.y + r1.h > r2.y);
 }
 
-// --- RENDER & GAME LOOP ---
+// render and game loop
 
 function renderLoop(timestamp) {
     if (!isGameRunning) return;
@@ -262,9 +259,7 @@ function renderLoop(timestamp) {
             // Apply Physics Prediction (Client-Side)
             applyPhysics(player, dt);
             
-            // Note: We do NOT interpolate/smooth "My Player" here. 
-            // We trust the physics engine above. 
-            // The "handleServerMessage" function handles the snapping if we are wrong.
+            // handleServerMessage function handles the snapping if we are wrong.
         } else {
             // Interpolate Enemies
             if (player.serverX !== undefined) {
@@ -297,7 +292,7 @@ function renderLoop(timestamp) {
     requestAnimationFrame(renderLoop);
 }
 
-// --- Inputs ---
+// inputs
 
 function handleKey(e) {
     if (e.repeat) return;
@@ -316,7 +311,7 @@ function handleKey(e) {
     }
 }
 
-// --- Debug UI ---
+// ping rate
 
 function startPingLoop() {
     setInterval(() => {
