@@ -59,4 +59,5 @@ ENABLE_LAG=true           # to toggle lag
 
 
 ## ⚙️ Running the engine
+npm i
 npm run dev
