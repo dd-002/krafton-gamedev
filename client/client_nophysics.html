@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Debug Mode - Dipayan Das</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #2c3e50;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+        }
+        #login-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            width: 300px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border: 1px solid #e67e22; /* Orange border for Debug Mode */
+        }
+        input, button { width: 100%; padding: 10px; margin: 10px 0; border-radius: 5px; border: none; }
+        input { background: #34495e; color: white; }
+        #btn-create { background: #e67e22; color: white; cursor: pointer; }
+        #btn-join { background: #d35400; color: white; cursor: pointer; }
+        
+        #gameCanvas { display: none; margin: 0 auto; background: #ecf0f1; box-shadow: 0 0 20px rgba(0,0,0,0.2); }
+        #game-info { display: none; position: absolute; top: 20px; left: 20px; background: rgba(255,255,255,0.9); padding: 10px; color: #2c3e50; border-radius: 5px; }
+        
+        #game-over-screen {
+            display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); padding: 40px; text-align: center; border-radius: 10px;
+        }
+
+        .game-footer {
+            position: absolute;
+            bottom: 10px;
+            width: 100%;
+            text-align: center;
+            font-size: 12px;
+            color: #7f8c8d;
+            pointer-events: none;
+        }
+        .game-footer a { color: #95a5a6; text-decoration: none; pointer-events: auto; }
+    </style>
+</head>
+<body>
+
+    <div id="login-screen">
+        <h2 style="color: #e67e22;">Debug Mode</h2>
+        <p style="font-size: 12px; color: #bdc3c7;">(No Physics / Lag Test)</p>
+        <input type="text" id="username" placeholder="Enter Username" maxlength="10">
+        <button id="btn-create">Create Room</button>
+        <div style="margin: 10px 0; font-size: 12px; color: #bdc3c7;">- OR -</div>
+        <input type="text" id="room-code" placeholder="Room Code">
+        <button id="btn-join">Join Room</button>
+        <div id="connection-status" style="margin-top: 10px; font-size: 12px; color: #f1c40f;">Ready</div>
+        <div style="margin-top: 20px; font-size: 12px;"><a href="index.html" style="color:#bdc3c7;">&larr; Back to Menu</a></div>
+    </div>
+
+    <div id="game-info">Room: <span id="room-display">---</span> | Players: <span id="player-count">0</span></div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="game-over-screen">
+        <h1 id="winner-name">Winner!</h1>
+        <button onclick="location.reload()">Play Again</button>
+        <button onclick="location.href='index.html'" style="margin-top: 10px; background: #c0392b;">Exit to Menu</button>
+    </div>
+
+    <div class="game-footer">
+        <p>Made with Love for <strong>Krafton</strong>, by <strong>Dipayan Das</strong></p>
+        <p>
+            <a href="mailto:ddipayan@iitb.ac.in">ddipayan@iitb.ac.in</a> | 
+            <a href="mailto:d.dipayan2002@gmail.com">d.dipayan2002@gmail.com</a>
+        </p>
+        <p><a href="https://github.com/your-username/your-repo-name" target="_blank">View on GitHub</a></p>
+    </div>
+
+    <script src="client_nophysics.js"></script>
+
+</body>
+</html>

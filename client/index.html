@@ -3,39 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dipayan's Coin Hunter</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Krafton Multiplayer Challenge - Dipayan Das</title>
+    <style>
+        body {
+            margin: 0;
+            background: #2c3e50;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+
+        h1 { font-size: 3rem; margin-bottom: 10px; color: #f1c40f; }
+        p.subtitle { color: #bdc3c7; margin-bottom: 40px; font-size: 1.2rem; }
+
+        .card-container {
+            display: flex;
+            gap: 30px;
+        }
+
+        .card {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 10px;
+            width: 250px;
+            text-align: center;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            background: rgba(0, 0, 0, 0.8);
+            border-color: #27ae60;
+        }
+
+        .card h2 { margin-top: 0; color: #ecf0f1; }
+        .card p { color: #95a5a6; font-size: 0.9rem; }
+
+        .btn {
+            display: inline-block;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background: #2980b9;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+
+        .card:hover .btn { background: #27ae60; }
+
+        footer {
+            position: absolute;
+            bottom: 20px;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #bdc3c7;
+        }
+        footer a { color: #f1c40f; text-decoration: none; }
+        footer a:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
 
-    <div id="login-screen" class="ui-panel">
-        <h1 class="game-title">🪙 Coin Hunter</h1>
-        
-        <input type="text" id="username" placeholder="Enter Nickname" value="Player 1" maxlength="10">
-        <br>
-        <button id="btn-create">Create Room</button>
-        <br>
-        <div class="separator">-- OR --</div>
-        <input type="text" id="room-code" placeholder="Room ID">
-        <button id="btn-join">Join Room</button>
-        
-        <div id="connection-status" class="status-msg"></div>
+    <h1>Multiplayer Arena</h1>
+    <p class="subtitle">Real-time Architecture Demo</p>
+
+    <div class="card-container">
+        <div class="card" onclick="location.href='client_physics.html'">
+            <h2>Physics Client</h2>
+            <p><strong>(Recommended)</strong></p>
+            <p>Features Client-Side Prediction, Reconciliation, and Entity Interpolation.</p>
+            <a href="client_physics.html" class="btn">Launch Game</a>
+        </div>
+
+        <div class="card" onclick="location.href='client_nophysics.html'">
+            <h2>Debug Client</h2>
+            <p><strong>(Testing Only)</strong></p>
+            <p>No client-side physics. Pure server authoritative state rendering to visualize lag.</p>
+            <a href="client_nophysics.html" class="btn">Launch Debugger</a>
+        </div>
     </div>
 
-    <div id="game-over-screen" class="ui-panel" style="display: none;">
-        <h1>🏆 GAME OVER 🏆</h1>
-        <div id="winner-name">PlayerName Wins!</div>
-        <button onclick="location.reload()">Play Again</button>
-    </div>
+    <footer>
+        <p>Made with Love for <strong>Krafton</strong>, by <strong>Dipayan Das</strong></p>
+        <p>
+            <a href="mailto:ddipayan@iitb.ac.in">ddipayan@iitb.ac.in</a> | 
+            <a href="mailto:d.dipayan2002@gmail.com">d.dipayan2002@gmail.com</a>
+        </p>
+        <p><a href="https://github.com/dd-002/krafton-gamedev" target="_blank">View on GitHub</a></p>
+    </footer>
 
-    <div id="game-info" style="display: none;">
-        <div class="hud-item">Room: <span id="room-display">-</span></div>
-        <div class="hud-item">Players: <span id="player-count">0</span></div>
-        <div class="hud-item target-msg">Target: 10 Coins</div>
-    </div>
-
-    <canvas id="gameCanvas"></canvas>
-
-    <script src="client.js"></script>
 </body>
 </html>
