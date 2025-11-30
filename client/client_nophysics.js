@@ -16,9 +16,16 @@ const inputs = { w: false, a: false, s: false, d: false };
 // Visual Constants
 const PLAYER_SIZE = 30; 
 
+// Network Diganosticss
+let pingStart = 0;
+let currentPing = 0;
+
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('btn-create').addEventListener('click', connectAndCreate);
     document.getElementById('btn-join').addEventListener('click', connectAndJoin);
+    
+    // Create the pure monitoring UI
+    createDebugUI();
 });
 
 function initCanvas() {
@@ -53,7 +60,12 @@ function connect(name, mode, roomId = null) {
     
     ws = new WebSocket(`${SERVER_URL}?name=${encodeURIComponent(name)}`);
 
-    ws.onopen = () => { statusDiv.innerText = "Connected!"; };
+    ws.onopen = () => { 
+        statusDiv.innerText = "Connected!";
+        // Start the Ping Loop 
+        startPingLoop();
+    };
+
     ws.onmessage = (event) => { handleServerMessage(JSON.parse(event.data), mode, roomId); };
     ws.onclose = () => { 
         if (isGameRunning) { 
@@ -69,6 +81,18 @@ function handleServerMessage(data, mode, targetRoomId) {
             if (mode === 'create') ws.send(JSON.stringify({ type: 'create_room' }));
             else if (mode === 'join') ws.send(JSON.stringify({ type: 'join_room', roomId: targetRoomId }));
             break;
+            
+        // ping measurement
+        case 'pong':
+            const now = performance.now();
+            // Calculate Round Trip Time
+            const latency = Math.round(now - pingStart);
+            
+            // Smooth the value 
+            currentPing = Math.round((currentPing * 0.8) + (latency * 0.2));
+            
+            updateDebugUI(currentPing);
+            break;
 
         case 'INIT':
             myId = data.selfId;
@@ -78,10 +102,6 @@ function handleServerMessage(data, mode, targetRoomId) {
             
             players.clear();
             data.players.forEach(p => {
-                // Initialize positions
-                p.x = p.x; 
-                p.y = p.y;
-                // Target is where the server says we should be
                 p.targetX = p.x; 
                 p.targetY = p.y;
                 players.set(p.id, p);
@@ -109,7 +129,6 @@ function handleServerMessage(data, mode, targetRoomId) {
             data.players.forEach(p => {
                 const localPlayer = players.get(p.id);
                 if (localPlayer) {
-                    // The render loop will smooth us towards this target.
                     localPlayer.targetX = p.x;
                     localPlayer.targetY = p.y;
                     localPlayer.score = p.score;
@@ -126,7 +145,47 @@ function handleServerMessage(data, mode, targetRoomId) {
     document.getElementById('player-count').innerText = players.size;
 }
 
-// input
+
+function startPingLoop() {
+    setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            pingStart = performance.now();
+            ws.send(JSON.stringify({ type: 'ping' }));
+        }
+    }, 1000); // Check ping every 1 second
+}
+
+function createDebugUI() {
+    const div = document.createElement('div');
+    div.style.position = 'absolute';
+    div.style.top = '10px';
+    div.style.right = '10px';
+    div.style.background = 'rgba(0, 0, 0, 0.6)';
+    div.style.padding = '8px 12px';
+    div.style.color = 'white';
+    div.style.fontFamily = 'monospace';
+    div.style.fontSize = '14px';
+    div.style.borderRadius = '5px';
+    div.style.zIndex = '1000';
+    div.style.pointerEvents = 'none'; // Make sure clicks pass through to the game
+
+    // Simple display only
+    div.innerHTML = `Ping: <span id="debug-ping" style="color: #2ecc71; font-weight: bold;">0</span> ms`;
+
+    document.body.appendChild(div);
+}
+
+function updateDebugUI(ping) {
+    const el = document.getElementById('debug-ping');
+    if (el) {
+        el.innerText = ping;
+        if (ping < 100) el.style.color = '#2ecc71'; 
+        else if (ping < 200) el.style.color = '#f1c40f'; 
+        else el.style.color = '#e74c3c'; 
+    }
+}
+
+// --- Input (Send Only) ---
 
 function handleKey(e) {
     if (e.repeat) return;
@@ -145,7 +204,7 @@ function handleKey(e) {
     }
 }
 
-// renderer with no physics
+// Render Logic with no client side physics
 
 function renderLoop() {
     if (!isGameRunning) return;
@@ -173,18 +232,14 @@ function renderLoop() {
         ctx.stroke();
     }
 
-    // Process Players
     players.forEach(player => {
-        
-        // INTERPOLATION 
-        // We simply slide 20% of the way to the server's target position every frame.
-        // This makes movement look smooth even at 30Hz update rate.
+        // SMOOTH INTERPOLATION
+        // We chase the server's target coordinates
         if (player.targetX !== undefined) {
             player.x += (player.targetX - player.x) * 0.2;
             player.y += (player.targetY - player.y) * 0.2;
         }
 
-        // Draw Player
         ctx.fillStyle = player.color;
         ctx.fillRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
         
@@ -194,14 +249,12 @@ function renderLoop() {
             ctx.strokeRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
         }
 
-        // Health/Score Bar
         ctx.fillStyle = '#7f8c8d'; 
         ctx.fillRect(player.x, player.y - 15, PLAYER_SIZE, 6);
         const fillWidth = Math.min((player.score / 10) * PLAYER_SIZE, PLAYER_SIZE);
         ctx.fillStyle = '#2ecc71'; 
         ctx.fillRect(player.x, player.y - 15, fillWidth, 6);
 
-        // Name
         ctx.fillStyle = '#2c3e50'; 
         ctx.font = 'bold 12px Arial'; 
         ctx.textAlign = 'center'; 
