@@ -7,7 +7,7 @@
 
 ## 📖 Project Overview
 
-This project is a high-performance, authoritative multiplayer game engine developed as a technical demonstration for **Krafton**. It is built entirely from scratch using **Pure Node.js** (no Express framework) to maximize performance and control over the networking layer.
+This project is a high-performance, authoritative multiplayer game engine developed as a technical demonstration for **Krafton**. It is built entirely from scratch using **Pure Node.js**  to maximize performance and control over the networking layer.
 
 The engine demonstrates advanced "Netcode" concepts used in professional multiplayer games, ensuring smooth gameplay even under varying network conditions. It features a custom **Client-Side Prediction** architecture with **Server Reconciliation**, decoupled via a dual-port setup.
 
