@@ -26,16 +26,13 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
             // Routing Logic
             switch (data.type) {
                 case 'ping':
-                    // We add the same 200ms delay here to match the Game Physics Lag
-                    setTimeout(() => {
-                        ws.send(JSON.stringify({ type: 'pong' }));
-                    }, 200);
+                    ws.send(JSON.stringify({ type: 'pong' }));
                     break;
 
                 case 'create_room':
                     await handleRoomMessage(ws, wss, redisClient, data);
                     break;
-                    
+
                 case 'join_room':
                     await handleRoomMessage(ws, wss, redisClient, data);
                     break;
