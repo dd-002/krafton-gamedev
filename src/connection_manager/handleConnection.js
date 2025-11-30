@@ -4,7 +4,7 @@ const { handleGameMessage } = require('./handlers/gameHandler');
 const { activeGameRooms } = require('../managers/roomManager');
 
 // simulated lag
-const ENABLE_LAG = true; 
+const ENABLE_LAG = process.env.ENABLE_LAG || false; 
 const LAG_MS = process.env.LAG_MS || 200;  // 200ms delay (Simulates 100ms ping one-way)
 // -----------------------------------
 
