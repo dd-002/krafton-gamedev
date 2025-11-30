@@ -1,9 +1,6 @@
 const mapGenerator = require('./MapGenerator');
 const PhysicsEngine = require('../engines/PhysicsEngine');
 
-
-//Manages all game related activites
-
 class GameRoom {
     constructor(roomId, redisClient) {
         this.roomId = roomId;
@@ -17,12 +14,17 @@ class GameRoom {
         this.coin = null; 
         this.isGameActive = true; 
         
+        // timestep tracking
+        this.tickCount = 0; // Counts the number of frames simulated
+
         // Generate Map
         this.mapData = mapGenerator.generate(this.maxPlayers);
         this.availableSpawns = [...this.mapData.startPositions];
 
         // Initialize Physics Engine
         this.physics = new PhysicsEngine(this.mapData);
+
+        this.lastTickTime = Date.now();
 
         console.log(`[Room ${roomId}] Created with ${this.mapData.obstacles.length} walls.`);
         
@@ -35,24 +37,34 @@ class GameRoom {
         }, 1000 / this.tickRate);
     }
 
-    /**
-     * main game loop, delegates physics tasks to engine and handles game events, broadcaasts results
-     */
     update() {
-        if (this.players.size === 0 || !this.isGameActive) return;
+        if (this.players.size === 0 || !this.isGameActive) {
+            this.lastTickTime = Date.now();
+            return;
+        }
 
-        // Delegate Physics Logic
-        const result = this.physics.update(this.players, this.coin);
+        const now = Date.now();
+        let dt = now - this.lastTickTime;
+        this.lastTickTime = now;
+        if (dt > 100) dt = 100; 
+
+        // increments tick
+        this.tickCount++; 
+        // ----------------------
+
+        const result = this.physics.update(this.players, this.coin, dt);
         
-        // Handle Logic Events returned by Physics
         if (result.coinEatenBy) {
             this.handleCoinEaten(result.coinEatenBy);
         }
 
-        // Broadcast if anything happened
         if (result.hasChanges || result.coinEatenBy) {
             this.broadcast({
                 type: 'GAME_STATE',
+                // --- SEND TIMESTEPS ---
+                serverTick: this.tickCount,
+                timestamp: now,
+                // ----------------------
                 players: result.snapshot,
                 coin: this.coin 
             });
@@ -68,7 +80,6 @@ class GameRoom {
         if (player.score >= this.winningScore) {
             this.handleWin(player);
         } else {
-            // Respawn after 2 seconds
             setTimeout(() => this.spawnCoin(), 2000);
         }
     }
@@ -83,10 +94,8 @@ class GameRoom {
         while (!valid && attempts < 50) {
             x = Math.floor(Math.random() * (this.mapData.width - 40)) + 20;
             y = Math.floor(Math.random() * (this.mapData.height - 40)) + 20;
-            
             const coinRect = { x: x, y: y, w: 15, h: 15 };
             
-            // We use the Physics Engine to check if this random spot is valid
             let collisionFound = false;
             for (const obs of this.mapData.obstacles) {
                 if (this.physics.checkCollision(coinRect, obs)) {
@@ -94,7 +103,6 @@ class GameRoom {
                     break;
                 }
             }
-
             if (!collisionFound) valid = true;
             attempts++;
         }
@@ -124,8 +132,6 @@ class GameRoom {
             p.inputs = { ...p.inputs, ...inputs };
         }
     }
-
-    // networking and management
 
     async syncRoomStateToRedis() {
         await this.redisClient.hSet(`room:${this.roomId}`, {
@@ -161,7 +167,6 @@ class GameRoom {
         };
 
         this.players.set(playerId, newPlayer);
-        
         await this.redisClient.sAdd(`room:${this.roomId}:players`, playerId);
         await this.syncRoomStateToRedis();
 
@@ -180,10 +185,7 @@ class GameRoom {
             coin: this.coin 
         }));
 
-        this.broadcast({ 
-            type: 'NEW_PLAYER', 
-            player: this.sanitizePlayer(newPlayer) 
-        }, playerId);
+        this.broadcast({ type: 'NEW_PLAYER', player: this.sanitizePlayer(newPlayer) }, playerId);
 
         return true;
     }
@@ -194,7 +196,6 @@ class GameRoom {
             if (p.originalSpawn) this.availableSpawns.push(p.originalSpawn);
             
             this.players.delete(playerId);
-            
             await this.redisClient.sRem(`room:${this.roomId}:players`, playerId);
             await this.syncRoomStateToRedis();
 

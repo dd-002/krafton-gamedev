@@ -5,7 +5,7 @@ const { activeGameRooms } = require('../managers/roomManager');
 
 // simulated lag
 const ENABLE_LAG = true; 
-const LAG_MS = 200; // 200ms delay (Simulates 100ms ping one-way)
+const LAG_MS = process.env.LAG_MS; // 200ms delay (Simulates 100ms ping one-way)
 // -----------------------------------
 
 const handleConnection = async (ws, wss, redisClient, clientName) => {
@@ -64,7 +64,7 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
             }
         };
 
-        // --- APPLY THE DELAY ---
+        // applies delay
         if (ENABLE_LAG) {
             // Delay the processing of the message
             setTimeout(() => {

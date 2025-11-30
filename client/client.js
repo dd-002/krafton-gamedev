@@ -13,17 +13,18 @@ let currentCoin = null;
 // Inputs
 const inputs = { w: false, a: false, s: false, d: false };
 
-// --- PHYSICS CONSTANTS (Must Match Server Exactly) ---
+// --- PHYSICS CONSTANTS ---
 const PLAYER_SIZE = 30;
 const RECOIL_DISTANCE = 25;
-const SPEED_PER_MS = 0.15; // 5px per 33ms
+const SPEED_PER_MS = 0.15; 
 
-// --- JITTER FIX TUNING ---
-// The "Trust Zone". If Server is within this distance, we ignore it.
-// 40px allows for ~250ms of lag (ping) without jittering.
-const RECONCILIATION_TOLERANCE = 40; 
-// If we are WAY off (e.g. wall glitch), we snap.
-const SNAP_THRESHOLD = 100; 
+// --- RECONCILIATION TUNING ---
+const RECONCILIATION_TOLERANCE = 40; // The "Trust Zone" (prevents jitter)
+const SNAP_THRESHOLD = 100; // Hard correction threshold
+
+// --- TIMESTEP TRACKING ---
+let lastServerTick = 0; // Track the latest frame we received
+// -------------------------
 
 let lastFrameTime = 0;
 let pingStart = 0;
@@ -73,9 +74,7 @@ function connect(name, mode, roomId = null) {
     };
 
     ws.onmessage = (event) => { handleServerMessage(JSON.parse(event.data), mode, roomId); };
-    ws.onclose = () => { 
-        if (isGameRunning) { alert("Disconnected."); location.reload(); } 
-    };
+    ws.onclose = () => { if (isGameRunning) { alert("Disconnected."); location.reload(); } };
 }
 
 function handleServerMessage(data, mode, targetRoomId) {
@@ -87,7 +86,7 @@ function handleServerMessage(data, mode, targetRoomId) {
             
         case 'pong':
             const latency = Math.round(performance.now() - pingStart);
-            updateDebugUI(latency);
+            updateDebugUI(latency, lastServerTick);
             break;
 
         case 'INIT':
@@ -95,14 +94,12 @@ function handleServerMessage(data, mode, targetRoomId) {
             mapData = data.map;
             currentCoin = data.coin;
             document.getElementById('room-display').innerText = data.roomId;
-            
             players.clear();
             data.players.forEach(p => {
                 p.serverX = p.x; 
                 p.serverY = p.y;
                 players.set(p.id, p);
             });
-            
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('gameCanvas').style.display = 'block';
             document.getElementById('game-info').style.display = 'block';
@@ -120,7 +117,17 @@ function handleServerMessage(data, mode, targetRoomId) {
             break;
 
         case 'GAME_STATE':
+            // --- TIMESTEP CHECK ---
+            // If this packet is OLDER than what we already have, ignore it.
+            if (data.serverTick < lastServerTick) {
+                console.warn(`Dropped out-of-order packet. Cur: ${lastServerTick}, Rcv: ${data.serverTick}`);
+                return;
+            }
+            lastServerTick = data.serverTick;
+            // ----------------------
+
             currentCoin = data.coin;
+            
             data.players.forEach(p => {
                 const localPlayer = players.get(p.id);
                 if (localPlayer) {
@@ -128,19 +135,17 @@ function handleServerMessage(data, mode, targetRoomId) {
                     localPlayer.serverY = p.y;
                     localPlayer.score = p.score;
 
-                    // --- NEW RECONCILIATION LOGIC ---
                     if (p.id === myId) {
                         const dist = Math.hypot(localPlayer.x - p.x, localPlayer.y - p.y);
                         
-                        // 1. HARD SNAP: If we are catastrophically wrong (e.g. wall clip)
+                        // JITTER FIX:
+                        // Only snap if the error is HUGE (like > 100px). 
+                        // If it's small (<40px), we assume it's just lag and ignore it.
                         if (dist > SNAP_THRESHOLD) {
                             localPlayer.x = p.x;
                             localPlayer.y = p.y;
-                        } 
-                        // 2. TRUST ZONE: If dist < RECONCILIATION_TOLERANCE, DO NOTHING.
-                        //    We assume the difference is just normal lag.
-                        //    This stops the "Up/Down" fighting.
-                    } 
+                        }
+                    }
                 }
             });
             break;
@@ -154,10 +159,9 @@ function handleServerMessage(data, mode, targetRoomId) {
     document.getElementById('player-count').innerText = players.size;
 }
 
-// --- PHYSICS ENGINE PORT (Client Side) ---
+// --- PHYSICS ENGINE PORT ---
 
 function applyPhysics(player, dt) {
-    // Only apply inputs if the player is ME
     const moveDist = SPEED_PER_MS * dt;
     let dx = 0;
     let dy = 0;
@@ -177,15 +181,11 @@ function applyMovement(player, dx, dy) {
     const newX = player.x + dx;
     const rectX = { x: newX, y: player.y, w: PLAYER_SIZE, h: PLAYER_SIZE };
     
-    // Check Walls AND Other Players
     if (isPositionSafe(newX, player.y) && !checkPlayerCollision(rectX, player.id)) {
         player.x = newX;
     } else {
-        // RECOIL X (Match Server)
         const bounceX = player.x - (Math.sign(dx) * RECOIL_DISTANCE);
-        if (isPositionSafe(bounceX, player.y)) {
-            player.x = bounceX;
-        }
+        if (isPositionSafe(bounceX, player.y)) player.x = bounceX;
     }
 
     // Y-Axis
@@ -195,11 +195,8 @@ function applyMovement(player, dx, dy) {
     if (isPositionSafe(player.x, newY) && !checkPlayerCollision(rectY, player.id)) {
         player.y = newY;
     } else {
-        // RECOIL Y
         const bounceY = player.y - (Math.sign(dy) * RECOIL_DISTANCE);
-        if (isPositionSafe(player.x, bounceY)) {
-            player.y = bounceY;
-        }
+        if (isPositionSafe(player.x, bounceY)) player.y = bounceY;
     }
 }
 
@@ -217,12 +214,8 @@ function isPositionSafe(x, y) {
 function checkPlayerCollision(rect, selfId) {
     for (const [otherId, otherPlayer] of players) {
         if (otherId === selfId) continue;
-        const otherRect = { 
-            x: otherPlayer.x, 
-            y: otherPlayer.y, 
-            w: PLAYER_SIZE, 
-            h: PLAYER_SIZE 
-        };
+        // Collision check against visual position of enemies
+        const otherRect = { x: otherPlayer.x, y: otherPlayer.y, w: PLAYER_SIZE, h: PLAYER_SIZE };
         if (checkCollision(rect, otherRect)) return true;
     }
     return false;
@@ -266,37 +259,29 @@ function renderLoop(timestamp) {
 
     players.forEach(player => {
         if (player.id === myId) {
-            // 1. RUN PREDICTION
-            // Move purely based on inputs. 
-            // We NO LONGER continuously pull towards server here.
+            // Apply Physics Prediction (Client-Side)
             applyPhysics(player, dt);
-
-            // 2. SOFT NUDGE (Only if outside "Perfect" but inside "Tolerance")
-            // Optional: You can re-enable a very weak pull here if you want 
-            // slight drift correction, but for now it's safer to leave it OFF
-            // to guarantee no jitter.
             
-            // Draw ME
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
-            ctx.strokeStyle = '#2c3e50'; 
-            ctx.lineWidth = 3; 
-            ctx.strokeRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
-            
+            // Note: We do NOT interpolate/smooth "My Player" here. 
+            // We trust the physics engine above. 
+            // The "handleServerMessage" function handles the snapping if we are wrong.
         } else {
-            // INTERPOLATE ENEMIES
-            // We don't predict them, we just smooth them to where server says they are.
+            // Interpolate Enemies
             if (player.serverX !== undefined) {
                 player.x += (player.serverX - player.x) * 0.2;
                 player.y += (player.serverY - player.y) * 0.2;
             }
-            
-            // Draw ENEMIES
-            ctx.fillStyle = player.color;
-            ctx.fillRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
         }
 
-        // Health/Score Bar
+        ctx.fillStyle = player.color;
+        ctx.fillRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
+        
+        if (player.id === myId) {
+            ctx.strokeStyle = '#2c3e50'; 
+            ctx.lineWidth = 3; 
+            ctx.strokeRect(player.x, player.y, PLAYER_SIZE, PLAYER_SIZE);
+        }
+
         ctx.fillStyle = '#7f8c8d'; 
         ctx.fillRect(player.x, player.y - 15, PLAYER_SIZE, 6);
         const fillWidth = Math.min((player.score / 10) * PLAYER_SIZE, PLAYER_SIZE);
@@ -355,16 +340,26 @@ function createDebugUI() {
     div.style.borderRadius = '5px';
     div.style.zIndex = '1000';
     div.style.pointerEvents = 'none'; 
-    div.innerHTML = `Ping: <span id="debug-ping" style="color: #2ecc71; font-weight: bold;">0</span> ms`;
+    // Added Tick Display
+    div.innerHTML = `
+        <div>Ping: <span id="debug-ping" style="color: #2ecc71; font-weight: bold;">0</span> ms</div>
+        <div style="font-size: 11px; color: #aaa;">Server Tick: <span id="debug-tick">0</span></div>
+    `;
     document.body.appendChild(div);
 }
 
-function updateDebugUI(ping) {
-    const el = document.getElementById('debug-ping');
-    if (el) {
-        el.innerText = ping;
-        if (ping < 100) el.style.color = '#2ecc71'; 
-        else if (ping < 200) el.style.color = '#f1c40f'; 
-        else el.style.color = '#e74c3c'; 
+function updateDebugUI(ping, tick) {
+    const elPing = document.getElementById('debug-ping');
+    const elTick = document.getElementById('debug-tick');
+    
+    if (elPing) {
+        elPing.innerText = ping;
+        if (ping < 100) elPing.style.color = '#2ecc71'; 
+        else if (ping < 200) elPing.style.color = '#f1c40f'; 
+        else elPing.style.color = '#e74c3c'; 
+    }
+    
+    if (elTick && tick) {
+        elTick.innerText = tick;
     }
 }
