@@ -211,27 +211,13 @@ class GameRoom {
         return cleanPlayer;
     }
 
-    //broadcast(data, excludePlayerId = null) {
-    //    const payload = JSON.stringify(data);
-    //    for (const [pid, player] of this.players) {
-    //        if (pid !== excludePlayerId && player.ws.readyState === 1) {
-    //            player.ws.send(payload);
-    //        }
-    //    }
-    //}
-    
-    // artificial lag to broadcast
     broadcast(data, excludePlayerId = null) {
         const payload = JSON.stringify(data);
-        
-        // We use setTimeout to artificially delay the packets
-        setTimeout(() => {
-            for (const [pid, player] of this.players) {
-                if (pid !== excludePlayerId && player.ws.readyState === 1) {
-                    player.ws.send(payload);
-                }
+       for (const [pid, player] of this.players) {
+            if (pid !== excludePlayerId && player.ws.readyState === 1) {
+                player.ws.send(payload);
             }
-        }, 200); // 200 ms lag
+        }
     }
 }
 
