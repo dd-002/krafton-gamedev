@@ -1,10 +1,15 @@
 const crypto = require('crypto');
 const { handleRoomMessage } = require('./handlers/roomHandler');
 const { handleGameMessage } = require('./handlers/gameHandler');
-const { activeGameRooms } = require('../managers/roomManager')
+const { activeGameRooms } = require('../managers/roomManager');
+
+// --- SIMULATED LAG CONFIGURATION ---
+// Set ENABLE_LAG to true to simulate a bad connection
+const ENABLE_LAG = false; 
+const LAG_MS = 200; // 200ms delay (Simulates 100ms ping one-way)
+// -----------------------------------
 
 const handleConnection = async (ws, wss, redisClient, clientName) => {
-
 
     const clientID = crypto.randomUUID();
     ws.clientID = clientID;
@@ -20,40 +25,55 @@ const handleConnection = async (ws, wss, redisClient, clientName) => {
 
     // Message Router
     ws.on('message', async (message) => {
-        try {
-            const data = JSON.parse(message.toString());
+        
+        // We wrap the entire logic in a function
+        const processMessage = async () => {
+            try {
+                const data = JSON.parse(message.toString());
 
-            // Routing Logic
-            switch (data.type) {
-                case 'ping':
-                    ws.send(JSON.stringify({ type: 'pong' }));
-                    break;
+                // Routing Logic
+                switch (data.type) {
+                    case 'ping':
+                        ws.send(JSON.stringify({ type: 'pong' }));
+                        break;
 
-                case 'create_room':
-                    await handleRoomMessage(ws, wss, redisClient, data);
-                    break;
+                    case 'create_room':
+                        await handleRoomMessage(ws, wss, redisClient, data);
+                        break;
 
-                case 'join_room':
-                    await handleRoomMessage(ws, wss, redisClient, data);
-                    break;
+                    case 'join_room':
+                        await handleRoomMessage(ws, wss, redisClient, data);
+                        break;
 
-                // Game Logic (WASD)
-                case 'move':
-                case 'input':
-                    // Check if they are actually in a room before allowing moves
-                    if (ws.roomID) {
-                        handleGameMessage(ws, wss, redisClient, data);
-                    } else {
-                        ws.send(JSON.stringify({ type: 'error', message: "Join a room first!"}));
-                    }
-                    break;
+                    // Game Logic (WASD)
+                    case 'move':
+                    case 'input':
+                        // Check if they are actually in a room before allowing moves
+                        if (ws.roomID) {
+                            handleGameMessage(ws, wss, redisClient, data);
+                        } else {
+                            ws.send(JSON.stringify({ type: 'error', message: "Join a room first!"}));
+                        }
+                        break;
 
-                default:
-                    console.log("Unknown message type:", data.type);
+                    default:
+                        console.log("Unknown message type:", data.type);
+                }
+
+            } catch (error) {
+                console.error("Error:", error);
             }
+        };
 
-        } catch (error) {
-            console.error("Error:", error);
+        // --- APPLY THE DELAY ---
+        if (ENABLE_LAG) {
+            // Delay the processing of the message
+            setTimeout(() => {
+                processMessage();
+            }, LAG_MS);
+        } else {
+            // Run immediately
+            processMessage();
         }
     });
 
